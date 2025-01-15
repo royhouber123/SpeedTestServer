@@ -59,7 +59,7 @@ def handle_tcp_connections(client_sock, client_addr):
             )
             try:
                 client_sock.sendall(payload_message)
-                print(f"Sent segment {current_segment}/{total_segments} to {client_addr} - TCP connection.")
+                #print(f"Sent segment {current_segment}/{total_segments} to {client_addr} - TCP connection.")
             except BrokenPipeError:
                 print(f"Broken pipe error while sending segment {current_segment}/{total_segments} to {client_addr}.")
                 break
@@ -67,6 +67,7 @@ def handle_tcp_connections(client_sock, client_addr):
     except Exception as e:
         print(f"Error handling TCP connection with {client_addr}: {e}")
     finally:
+        print(f"Closing TCP connection with {client_addr}.")
         client_sock.close()
 
 def handle_udp_connections():

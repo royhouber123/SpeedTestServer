@@ -89,57 +89,62 @@ def tcp_transfer(addr, server_tcp_port):
             print("--------------------------------------------")
         
         # Increase the TCP connection counter after the transfer finishes
-        global tcp_connections
-        tcp_connections += 1
+
         
     except Exception as e:
         print(f"Error during TCP transfer: {e}")
+    finally:
+        global tcp_connections
+        tcp_connections += 1
 
 
 def udp_transfer(addr, server_udp_port):
     try:
         start_time = time.time()
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_sock:
+            #udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024)  # Increase buffer size
             request_message = struct.pack('!I B Q', MAGIC_COOKIE, 0x03, file_size)
             udp_sock.sendto(request_message, (addr[0], server_udp_port))
-
+            
             received_segments = 0
             total_segments = 0
-            while True:
+            retries = 0
+            max_retries = 5  # Allow up to 5 retries for missing packets
+
+            while retries < max_retries:
                 try:
                     udp_sock.settimeout(1)  # Timeout after 1 second if no packet is received
                     message, _ = udp_sock.recvfrom(1024)  # Receive message
-
                     if len(message) >= 21 and is_valid_message(message):  # Valid message check
-                        total_segments = struct.unpack('!Q', message[5:13])[0] if total_segments == 0  else total_segments # Total number of segments
-                        print(f"Received segment from server. {received_segments}/{total_segments}")
+                        if total_segments == 0:
+                            total_segments = struct.unpack('!Q', message[5:13])[0]
+                        current_segment = struct.unpack('!Q', message[13:21])[0]
                         received_segments += 1
 
-                    if received_segments == total_segments:
-                        print(f"Received all {total_segments} segments.")
-                        break  # Exit loop when all segments have been received
-                except socket.timeout:
-                    # If no data received for 1 second, consider the transfer complete
-                    if received_segments == total_segments:
+                    if current_segment == total_segments:
                         break
+                except socket.timeout:
+                    retries += 1
+                    print(f"Timeout. Retrying... ({retries}/{max_retries})")
 
             end_time = time.time()
             total_time = end_time - start_time
-            speed = received_segments * (1024 - 21) * 8 / total_time  # Calculate speed in bits/second
-            packet_loss = (total_segments - received_segments) / total_segments * 100
+            speed = float(received_segments) * (1024.0 - 21.0) * 8.0 / total_time if total_time > 0 else 0
+            packet_success = (received_segments / total_segments * 100.0) if total_segments > 0 else 0.0
+
             print("--------------------------------------------")
             print("UDP Transfer - Completed")
             print(f"Time: {total_time:.2f} seconds")
             print(f"Speed: {speed:.2f} bits/second")
-            print(f"Packet Success Rate: {100 - packet_loss:.2f}%")
+            print(f"Packet Success Rate: {packet_success:.2f}%")
             print("--------------------------------------------")
-        
-        # Increase the UDP connection counter after the transfer finishes
-        global udp_connections
-        udp_connections += 1
-                
+            
     except Exception as e:
         print(f"Error during UDP transfer: {e}")
+    finally:
+        global udp_connections
+        udp_connections += 1
+
 
 
 
