@@ -5,8 +5,8 @@ import time
 import os
 
 MAGIC_COOKIE = 0xabcddcba
-BUFFER_SIZE = 1024  
-PAYLOAD_SIZE = BUFFER_SIZE - 21
+UDP_BUFFER = 1024  
+TCP_BUFFER = 4096
 BROADCAST_PORT = 13117
 UDP_PORT = 8080
 TCP_PORT = 9090
@@ -31,24 +31,25 @@ def send_broadcast_messages():
     while True:
         udp_sock.sendto(message, ('<broadcast>', BROADCAST_PORT))
         print(f"Broadcast message sent from {server_ip}")
-        time.sleep(10)
+        time.sleep(1)
 
 def handle_tcp_connections(client_sock, client_addr):
     try:
-        request_message = client_sock.recv(1024)
+        request_message = client_sock.recv(TCP_BUFFER)
         if not is_valid_request_message(request_message):
             print(f"Invalid request message from {client_addr}.")
             return
 
         file_size = struct.unpack('!Q', request_message[5:13])[0]
-        total_segments = (file_size + PAYLOAD_SIZE - 1) // PAYLOAD_SIZE
+        payload_size = TCP_BUFFER - 21
+        total_segments = (file_size + payload_size - 1) // payload_size
 
         for current_segment in range(1, total_segments + 1):
             magic_cookie = struct.pack('!I', 0xabcddcba)
             message_type = struct.pack('!B', 0x04)
             total_segments_packed = struct.pack('!Q', total_segments)
             current_segment_packed = struct.pack('!Q', current_segment)
-            payload = os.urandom(PAYLOAD_SIZE)
+            payload = b'A' * payload_size  # Use 'A' character to fill the payload
 
             payload_message = (
                 magic_cookie
@@ -59,7 +60,7 @@ def handle_tcp_connections(client_sock, client_addr):
             )
             try:
                 client_sock.sendall(payload_message)
-                #print(f"Sent segment {current_segment}/{total_segments} to {client_addr} - TCP connection.")
+                print(f"Sent segment {current_segment}/{total_segments} to {client_addr} - TCP connection.")
             except BrokenPipeError:
                 print(f"Broken pipe error while sending segment {current_segment}/{total_segments} to {client_addr}.")
                 break
@@ -83,14 +84,15 @@ def handle_udp_connections():
                 continue
 
             file_size = struct.unpack('!Q', request_message[5:13])[0]
-            total_segments = (file_size + PAYLOAD_SIZE - 1) // PAYLOAD_SIZE
+            payload_size = UDP_BUFFER - 21
+            total_segments = (file_size + payload_size - 1) // payload_size
 
             for current_segment in range(1, total_segments + 1):
                 magic_cookie = struct.pack('!I', 0xabcddcba)
                 message_type = struct.pack('!B', 0x04)
                 total_segments_packed = struct.pack('!Q', total_segments)
                 current_segment_packed = struct.pack('!Q', current_segment)
-                payload = os.urandom(PAYLOAD_SIZE)
+                payload = os.urandom(payload_size)
 
                 payload_message = (
                     magic_cookie

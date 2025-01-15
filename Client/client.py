@@ -73,7 +73,7 @@ def tcp_transfer(addr, server_tcp_port):
             
             received_data = b""
             while len(received_data) < file_size:
-                chunk = tcp_sock.recv(1024)  # Receive in 1 KB chunks (adjustable)
+                chunk = tcp_sock.recv(4096)  # Receive in 1 KB chunks (adjustable)
                 if not chunk:
                     break
                 received_data += chunk
@@ -102,19 +102,16 @@ def udp_transfer(addr, server_udp_port):
     try:
         start_time = time.time()
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp_sock:
-            #udp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024)  # Increase buffer size
             request_message = struct.pack('!I B Q', MAGIC_COOKIE, 0x03, file_size)
             udp_sock.sendto(request_message, (addr[0], server_udp_port))
-            
+            udp_sock.settimeout(1)  # Timeout after 1 second if no packet is received
             received_segments = 0
             total_segments = 0
             retries = 0
             max_retries = 5  # Allow up to 5 retries for missing packets
-
             while retries < max_retries:
                 try:
-                    udp_sock.settimeout(1)  # Timeout after 1 second if no packet is received
-                    message, _ = udp_sock.recvfrom(1024)  # Receive message
+                    message, _ = udp_sock.recvfrom(4096)  # Receive message
                     if len(message) >= 21 and is_valid_message(message):  # Valid message check
                         if total_segments == 0:
                             total_segments = struct.unpack('!Q', message[5:13])[0]
